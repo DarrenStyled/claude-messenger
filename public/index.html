@@ -395,7 +395,7 @@ function signIn(){
   myName=name; myAvi=document.querySelector('.avi-opt.sel')?.dataset.av||'😊';
 
   // Always connect to cloud server
-  const url=CLOUD_URL;
+  const url=https://claude-messenger.onrender.com;
   socket=io(url,{transports:['websocket','polling']});
   socket.on('connect',()=>{myId=socket.id;socket.emit('join',{username:myName,avatar:myAvi,personalMessage:pm});showApp();toast(`Welcome, ${myName}!`,'success');});
   socket.on('connect_error',e=>toast(`Connection failed: ${e.message}`,'error'));
