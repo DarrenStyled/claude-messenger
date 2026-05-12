@@ -9,8 +9,9 @@ const os = require('os');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  maxHttpBufferSize: 10 * 1024 * 1024, // 10MB (cloud-friendly)
-  cors: { origin: '*', methods: ['GET','POST'] }
+  maxHttpBufferSize: 10 * 1024 * 1024,
+  cors: { origin: '*', methods: ['GET','POST'] },
+  transports: ['polling', 'websocket']
 });
 
 const PORT = process.env.PORT || 3000;
