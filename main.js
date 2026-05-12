@@ -2,7 +2,7 @@ const { app, BrowserWindow, shell, Tray, Menu, nativeImage } = require('electron
 const path = require('path');
 
 // ── CLOUD URL ── Update this after deploying to Render ──────────────────────
-const CLOUD_URL = 'https://YOUR-APP-NAME.onrender.com';
+const CLOUD_URL = 'https://claude-messenger.onrender.com';
 // ────────────────────────────────────────────────────────────────────────────
 
 let mainWindow = null;
