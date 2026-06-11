@@ -2,8 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Claude Chat</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Claude Messenger</title>
+<meta name="theme-color" content="#D97757">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;1,9..144,300&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="/socket.io/socket.io.js"></script>
@@ -208,6 +215,47 @@ body{font-family:var(--fb);background:var(--bg);color:var(--tp);min-height:100vh
 .modeopt{flex:1;padding:8px 6px;background:var(--s2);border:2px solid var(--bd);border-radius:12px;cursor:pointer;text-align:center;transition:all .15s;user-select:none}
 .modeopt:hover{border-color:var(--bdw)}
 .modeopt.active{border-color:var(--co);background:var(--cos)}
+
+/* REACTIONS */
+.mwrap{display:flex;flex-direction:column}
+.mline{display:flex;align-items:center;gap:6px;align-self:flex-start;max-width:72%}
+.mline.self{flex-direction:row-reverse;align-self:flex-end}
+.mline .mbubble{max-width:100%}
+.rbtn{opacity:0;background:var(--s2);border:1px solid var(--bd);border-radius:999px;cursor:pointer;font-size:12px;padding:3px 7px;color:var(--tm);transition:all .15s;line-height:1;flex-shrink:0}
+.mwrap:hover .rbtn{opacity:1}
+.rbtn:hover{background:var(--cos);color:var(--co);border-color:var(--bdw)}
+.reacts{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px}
+.mwrap.self .reacts{justify-content:flex-end}
+.rchip{background:var(--s2);border:1px solid var(--bd);border-radius:999px;padding:2px 8px;font-size:12px;cursor:pointer;transition:all .15s;user-select:none}
+.rchip:hover{border-color:var(--bdw)}
+.rchip.mine{background:var(--cos);border-color:var(--co)}
+#rpick{position:fixed;background:var(--s2);border:1px solid var(--bd);border-radius:999px;box-shadow:0 8px 24px rgba(0,0,0,.35);padding:5px 8px;display:none;gap:2px;z-index:9500}
+#rpick.open{display:flex;animation:fadeUp .12s ease}
+#rpick span{font-size:20px;cursor:pointer;padding:3px 5px;border-radius:8px;transition:all .1s;line-height:1}
+#rpick span:hover{background:var(--s3);transform:scale(1.2)}
+
+/* VOICE RECORDING */
+@keyframes recpulse{0%,100%{box-shadow:0 0 0 0 rgba(217,87,87,.5)}50%{box-shadow:0 0 0 6px rgba(217,87,87,0)}}
+.tbtn.rec{background:var(--sbu);color:#fff;animation:recpulse 1.2s infinite}
+.vbubble{display:flex;flex-direction:column;gap:4px;background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:10px 14px;max-width:300px;align-self:flex-start}
+.vbubble.self{align-self:flex-end;border-color:var(--bdw)}
+.vbubble audio{width:230px;height:36px}
+
+/* MOBILE */
+@media (max-width:700px){
+  #login-screen{width:96vw;max-width:420px}
+  #sidebar{position:fixed;inset:0;width:100%;min-width:0;z-index:150;border-right:none}
+  #app.chat-open #sidebar{display:none}
+  .backbtn{display:inline-flex!important}
+  .mline{max-width:88%}
+  .chathdr{flex-wrap:wrap;gap:8px;padding:10px 12px}
+  .chactions{flex-wrap:wrap;gap:4px}
+  .abtn{padding:5px 8px;font-size:11px}
+  #messages{padding:14px 10px}
+  .toolbar{padding:4px 6px}
+  #msginput{height:48px}
+  .vbubble audio{width:180px}
+}
 </style>
 </head>
 <body>
@@ -215,7 +263,7 @@ body{font-family:var(--fb);background:var(--bg);color:var(--tp);min-height:100vh
 <div id="login-screen">
   <div class="lhdr">
     <div class="llogomark">💬</div>
-    <div class="ltitle">Claude Chat</div>
+    <div class="ltitle">Claude Messenger</div>
     <div class="lsub">Your private, direct line</div>
   </div>
   <div class="lbody">
@@ -232,9 +280,9 @@ body{font-family:var(--fb);background:var(--bg);color:var(--tp);min-height:100vh
         <div class="avi-opt" data-av="🤖">🤖</div><div class="avi-opt" data-av="👻">👻</div>
       </div>
     </div>
-          <div style="font-size:11px;color:var(--tm);margin-top:5px">Make up any code and share it with your friend — no setup needed!</div>
+    <div><label class="flabel">Passcode</label><input class="finput" type="password" id="lpass" placeholder="Ask Darren for the passcode" maxlength="60" autocomplete="off">
+      <div style="font-size:11px;color:var(--tm);margin-top:5px">Keeps the server private — leave blank if there isn't one.</div>
     </div>
-
     <button class="lbtn" onclick="signIn()">Start Chatting →</button>
     <div class="lnote" id="lnote">Connecting to Claude Messenger cloud server...</div>
   </div>
@@ -269,7 +317,7 @@ body{font-family:var(--fb);background:var(--bg);color:var(--tp);min-height:100vh
   <div id="maincontent">
     <div id="welcome">
       <div class="wlogo">💬</div>
-      <div class="wtitle">Claude Chat</div>
+      <div class="wtitle">Claude Messenger</div>
       <div class="wsub">Select a contact to start a conversation</div>
     </div>
     <div id="chatarea" style="display:none">
@@ -312,6 +360,8 @@ body{font-family:var(--fb);background:var(--bg);color:var(--tp);min-height:100vh
           <button class="tbtn" id="bbold" onclick="tf('bold')" title="Bold"><b>B</b></button>
           <button class="tbtn" id="bital" onclick="tf('italic')" title="Italic"><i>I</i></button>
           <div class="tsep"></div>
+          <button class="tbtn" id="bvoice" onclick="toggleVoice()" title="Voice message">🎤</button>
+          <div class="tsep"></div>
           <button class="tbtn" onclick="clearChat()" title="Clear">🗑️</button>
         </div>
         <div class="inrow">
@@ -351,12 +401,15 @@ body{font-family:var(--fb);background:var(--bg);color:var(--tp);min-height:100vh
 </div>
 
 <div id="dropzone"><span>📎</span>Drop file to send</div>
+<div id="rpick"></div>
 <div id="toasts"></div>
 <input type="file" id="fileinput" multiple onchange="handleFiles(this)">
 
 <script>
 let socket=null,myId=null,myName='',myAvi='😊',myStatus='online';
 let selContact=null,users=[],isGroup=false;
+let appShown=false,rec=null,recChunks=[],recStart=0,recTick=null,rpickMsgId=null;
+const REACT_EMOJIS=['👍','❤️','😂','😮','😢','🔥'];
 let mc='#2A1F16',mfs=13,bold=false,italic=false;
 let tTimer=null,isTyping=false,unread={},hist={};
 let lStream=null,remoteStream=null,pc=null,callTarget=null,callType=null,iOffer=null,iFrom=null;
@@ -368,7 +421,7 @@ function beep(f=880,d=0.1,v=0.25,t='sine'){try{const c=new(window.AudioContext||
 // Keep-alive ping so Render doesn't spin down
 setInterval(()=>fetch(CLOUD_URL+'/ping').catch(()=>{}), 10*60*1000);
 
-const sfx={msg:()=>beep(1100,.07,.18),nudge:()=>{beep(600,.1,.35,'square');setTimeout(()=>beep(800,.1,.35,'square'),120);setTimeout(()=>beep(1000,.1,.35,'square'),240);},join:()=>{beep(550,.12,.18);setTimeout(()=>beep(750,.12,.18),160);},leave:()=>{beep(750,.12,.18);setTimeout(()=>beep(550,.12,.18),160);},call:()=>{beep(420,.35,.28);setTimeout(()=>beep(520,.35,.28),180);}};
+const sfx={msg:()=>beep(1100,.07,.18),nudge:()=>{beep(600,.1,.35,'square');setTimeout(()=>beep(800,.1,.35,'square'),120);setTimeout(()=>beep(1000,.1,.35,'square'),240);},join:()=>{beep(523,.1,.2);setTimeout(()=>beep(659,.1,.2),110);setTimeout(()=>beep(784,.16,.22),220);},leave:()=>{beep(784,.1,.18);setTimeout(()=>beep(659,.1,.18),110);setTimeout(()=>beep(523,.18,.18),220);},call:()=>{beep(420,.35,.28);setTimeout(()=>beep(520,.35,.28),180);}};
 
 let connMode='local', roomCode='', peer=null, peerConns={};
 
@@ -392,29 +445,77 @@ function signIn(){
   const name=document.getElementById('lname').value.trim();
   if(!name){alert('Please enter your name!');return;}
   const pm=document.getElementById('lpm').value.trim();
+  const pass=document.getElementById('lpass').value.trim();
   myName=name; myAvi=document.querySelector('.avi-opt.sel')?.dataset.av||'😊';
+  try{localStorage.setItem('cmPrefs',JSON.stringify({name,pm,pass,avatar:myAvi}));}catch(e){}
+  if(socket){socket.disconnect();socket=null;}
+  document.getElementById('lnote').textContent='Connecting…';
 
   // Always connect to cloud server
-  const url=CLOUD_URL;
-  socket=io(url,{transports:['polling']});
-  socket.on('connect',()=>{myId=socket.id;socket.emit('join',{username:myName,avatar:myAvi,personalMessage:pm});showApp();toast(`Welcome, ${myName}!`,'success');});
+  socket=io(CLOUD_URL,{transports:['polling']});
+  socket.on('connect',()=>{socket.emit('join',{username:name,avatar:myAvi,personalMessage:pm,passcode:pass});});
+  socket.on('join-ok',({name:finalName})=>{
+    myId=socket.id;myName=finalName;
+    if(!appShown){appShown=true;showApp();toast(`Welcome, ${myName}!`,'success');}
+    else toast('Reconnected!','success');
+  });
+  socket.on('join-denied',()=>{
+    socket.disconnect();socket=null;
+    document.getElementById('lnote').textContent='❌ Wrong passcode — check it and try again';
+    toast('Wrong passcode','error');
+  });
   socket.on('connect_error',e=>toast(`Connection failed: ${e.message}`,'error'));
-  socket.on('disconnect',()=>toast('Disconnected — reconnecting…','error'));
-  socket.on('user-list',l=>{users=l.filter(u=>u.id!==myId);renderContacts();});
-  socket.on('user-joined',({username})=>{sfx.join();sysMsg(`${username} came online`);});
-  socket.on('user-left',({id,username})=>{sfx.leave();sysMsg(`${username} went offline`);if(selContact?.id===id)document.getElementById('chstatus').textContent='Offline';});
+  socket.on('disconnect',()=>{if(appShown)toast('Disconnected — reconnecting…','error');});
+  socket.on('user-list',l=>{
+    users=l.filter(u=>u.id!==myId);renderContacts();
+    // Contact ids change when someone goes offline/online — keep the open chat in sync
+    if(selContact){
+      const fresh=users.find(u=>u.username.toLowerCase()===selContact.username.toLowerCase());
+      if(fresh){selContact=fresh;document.getElementById('chstatus').textContent=slabel(fresh.status);}
+    }
+  });
+  socket.on('user-joined',({username})=>{if(myStatus!=='busy')sfx.join();sysMsg(`${username} signed in`);toast(`${username} has signed in`,'success');});
+  socket.on('user-left',({username})=>{if(myStatus!=='busy')sfx.leave();sysMsg(`${username} signed out`);toast(`${username} has signed out`);});
   socket.on('message',msg=>{
-    const self=msg.from===myId||msg.self;
-    const cid=self?(msg.to||'group'):msg.from;
+    const self=msg.self||msg.from===myId;
+    const cid=msg.toName?(self?msg.toName:msg.username).toLowerCase():'group';
     if(!hist[cid])hist[cid]=[];hist[cid].push(msg);
-    const vis=(isGroup&&!msg.to)||(!isGroup&&selContact&&(msg.from===selContact.id||self));
+    const vis=(isGroup&&cid==='group')||(!isGroup&&selContact&&cid===selContact.username.toLowerCase());
     if(vis)renderMsg(msg,self);
-    else if(!self){unread[msg.from]=(unread[msg.from]||0)+1;renderContacts();sfx.msg();const u=users.find(x=>x.id===msg.from);toast(`${u?.username||'Someone'}: ${msg.text.slice(0,40)}`);}
-    if(!self)sfx.msg();
+    if(!self){
+      if(myStatus!=='busy')sfx.msg();
+      if(!vis){
+        if(cid!=='group'){unread[cid]=(unread[cid]||0)+1;renderContacts();}
+        toast(`${msg.username}: ${(msg.text||'').slice(0,40)}`);
+      }
+    }
+  });
+  socket.on('offline-messages',({count,senders})=>{
+    if(myStatus!=='busy')sfx.msg();
+    toast(`📬 ${senders.join(', ')} sent you ${count} message${count>1?'s':''} while you were away`,'warning');
+    senders.forEach(s=>{unread[s.toLowerCase()]=(unread[s.toLowerCase()]||0)+1;});
+    renderContacts();
+  });
+  socket.on('reaction',({msgId,reactions})=>{
+    for(const k in hist){const m=hist[k].find(x=>x.id===msgId);if(m){m.reactions=reactions;break;}}
+    renderReactsById(msgId,reactions);
   });
   socket.on('nudge',({from,username})=>{sfx.nudge();document.getElementById('app').classList.add('nudging');setTimeout(()=>document.getElementById('app').classList.remove('nudging'),700);sysMsg(`${username} sent you a nudge! 👋`);toast(`${username} nudged you! 👋`,'warning');});
   socket.on('typing',({from,username,isTyping:t})=>{if(selContact&&from===selContact.id)document.getElementById('typebar').textContent=t?`${username} is typing…`:'';});
-  socket.on('file-share',msg=>{renderFile(msg,msg.self);if(!msg.self){const u=users.find(x=>x.id===msg.from);toast(`${u?.username||'Someone'} sent a file`);}});
+  socket.on('file-share',msg=>{
+    const self=msg.self||msg.from===myId;
+    const cid=msg.toName?(self?msg.toName:msg.username).toLowerCase():'group';
+    if(!hist[cid])hist[cid]=[];hist[cid].push(msg);
+    const vis=(isGroup&&cid==='group')||(!isGroup&&selContact&&cid===selContact.username.toLowerCase());
+    if(vis)renderFile(msg,self);
+    if(!self){
+      if(myStatus!=='busy')sfx.msg();
+      if(!vis){
+        if(cid!=='group'){unread[cid]=(unread[cid]||0)+1;renderContacts();}
+        toast(`${msg.username} sent ${msg.fileInfo?.voice?'a voice message':'a file'}`);
+      }
+    }
+  });
   socket.on('call-offer',({from,username,offer,callType:ct})=>{iFrom=from;iOffer=offer;callType=ct;window._isScreenShare=false;document.getElementById('icname').textContent=username;document.getElementById('ictype').textContent=ct==='video'?'is video calling you…':'is calling you…';document.getElementById('incomingcall').classList.add('active');sfx.call();});
   socket.on('call-answer',async({answer})=>{ await pc?.setRemoteDescription(new RTCSessionDescription(answer));});
   socket.on('ice-candidate',async({candidate})=>{try{await pc?.addIceCandidate(new RTCIceCandidate(candidate));}catch(e){}});
@@ -429,17 +530,17 @@ function signIn(){
     sfx.call();
   });
   socket.on('screen-share-answer',async({answer})=>{await pc?.setRemoteDescription(new RTCSessionDescription(answer));});
-  // Group chat history from server on join
-  socket.on('history',msgs=>{
-    msgs.forEach(m=>{if(!hist['group'])hist['group']=[];hist['group'].push(m);});
-    if(isGroup){const el=document.getElementById('messages');el.innerHTML='';(hist['group']||[]).forEach(m=>renderMsg(m,m.from===myId));}
-  });
-  // Auto-reconnect: re-announce identity after socket reconnects
-  socket.on('reconnect',()=>{
-    toast('Reconnected!','success');
-    const pm=document.getElementById('mepm')?.textContent||'';
-    socket.emit('join',{username:myName,avatar:myAvi,personalMessage:pm==='Set a personal message…'?'':pm});
-  });
+  // Full history arrives on every (re)join — replace, don't append, so nothing duplicates
+  socket.on('history',msgs=>{hist['group']=msgs.slice();if(isGroup)rerenderChat();});
+  socket.on('private-history',map=>{for(const k in map)hist[k]=map[k].slice();if(!isGroup&&selContact)rerenderChat();});
+}
+
+function isSelfMsg(m){return !!m.self||m.from===myId||m.username===myName;}
+function rerenderChat(){
+  const el=document.getElementById('messages');if(!el)return;
+  el.innerHTML='';
+  const key=isGroup?'group':selContact?.username.toLowerCase();
+  (hist[key]||[]).forEach(m=>m.fileInfo?renderFile(m,isSelfMsg(m)):renderMsg(m,isSelfMsg(m)));
 }
 
 function showApp(){
@@ -461,43 +562,45 @@ function renderContacts(){
   const on=f.filter(u=>u.status!=='offline'), off=f.filter(u=>u.status==='offline');
   document.getElementById('ocnt').textContent=`${on.length} online`;
   list.innerHTML='';
-  if(!f.length){list.innerHTML='<div style="padding:20px;text-align:center;font-size:12px;color:var(--tm)">No contacts yet<br><br>Share your IP with your friend!</div>';return;}
+  if(!f.length){list.innerHTML='<div style="padding:20px;text-align:center;font-size:12px;color:var(--tm)">No contacts yet<br><br>Anyone who signs in will appear here — even after they sign out.</div>';return;}
   [...on,...off].forEach(u=>{
+    const key=u.username.toLowerCase();
     const el=document.createElement('div');
     el.className='citem'+(selContact?.id===u.id?' active':'');
     el.onclick=()=>openChat(u);
-    el.innerHTML=`<div class="cavi">${u.avatar||'😊'}<div class="cpip ${u.status==='online'?'son':u.status==='away'?'saw':u.status==='busy'?'sbu':'sof'}"></div></div><div class="cdet"><div class="cname">${esc(u.username)}</div><div class="csub">${esc(u.personalMessage||slabel(u.status))}</div></div>${unread[u.id]?`<div class="ubadge">${unread[u.id]}</div>`:''}`;
+    el.innerHTML=`<div class="cavi">${aviHtml(u.avatar)}<div class="cpip ${u.status==='online'?'son':u.status==='away'?'saw':u.status==='busy'?'sbu':'sof'}"></div></div><div class="cdet"><div class="cname">${esc(u.username)}</div><div class="csub">${esc(u.personalMessage||slabel(u.status))}</div></div>${unread[key]?`<div class="ubadge">${unread[key]}</div>`:''}`;
     list.appendChild(el);
   });
 }
 
 function openChat(u){
-  selContact=u;isGroup=false;unread[u.id]=0;renderContacts();
+  selContact=u;isGroup=false;unread[u.username.toLowerCase()]=0;renderContacts();
+  document.getElementById('app').classList.add('chat-open');
   document.getElementById('welcome').style.display='none';
   const ca=document.getElementById('chatarea');ca.style.display='flex';ca.style.flexDirection='column';
-  document.getElementById('chavi').textContent=u.avatar||'😊';
+  document.getElementById('chavi').innerHTML=aviHtml(u.avatar);
   document.getElementById('chname').textContent=u.username;
   document.getElementById('chstatus').textContent=slabel(u.status);
   document.getElementById('backbtn').style.display='none';
-  const msgs=document.getElementById('messages');msgs.innerHTML='';
-  (hist[u.id]||[]).forEach(m=>renderMsg(m,m.from===myId||m.self));
+  rerenderChat();
   document.getElementById('msginput').focus();
 }
 
 function openGroup(){
   selContact=null;isGroup=true;
+  document.getElementById('app').classList.add('chat-open');
   document.getElementById('welcome').style.display='none';
   const ca=document.getElementById('chatarea');ca.style.display='flex';ca.style.flexDirection='column';
   document.getElementById('chavi').textContent='👥';
   document.getElementById('chname').textContent='Group Chat';
-  document.getElementById('chstatus').textContent=`${users.length} people`;
+  document.getElementById('chstatus').textContent=`${users.filter(u=>u.status!=='offline').length+1} people`;
   document.getElementById('backbtn').style.display='inline-flex';
-  document.getElementById('messages').innerHTML='';
-  (hist['group']||[]).forEach(m=>renderMsg(m,m.from===myId||m.self));
+  rerenderChat();
 }
 
 function goBack(){
   isGroup=false;selContact=null;
+  document.getElementById('app').classList.remove('chat-open');
   document.getElementById('chatarea').style.display='none';
   document.getElementById('welcome').style.display='flex';
   document.getElementById('backbtn').style.display='none';
@@ -518,22 +621,101 @@ function sendMsg(){
   isTyping=false;
 }
 
+function aviHtml(a){a=a||'😊';return String(a).startsWith('data:')?`<img src="${a}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`:esc(a);}
+
 function renderMsg(msg,self){
-  const msgs=document.getElementById('messages');
+  const msgs=document.getElementById('messages');if(!msgs)return;
   const time=new Date(msg.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-  const sty=`color:${msg.color||'#F5F0EB'};font-size:${msg.fontSize||13}px;${msg.bold?'font-weight:700;':''}${msg.italic?'font-style:italic;':''}`;
+  const sty=`color:${msg.color||'inherit'};font-size:${msg.fontSize||13}px;${msg.bold?'font-weight:700;':''}${msg.italic?'font-style:italic;':''}`;
   const w=document.createElement('div');
-  w.innerHTML=`<div class="msrow"><div class="msavi">${self?myAvi:getAvi(msg.from)}</div><div class="msname${self?' self':''}">${esc(self?myName:msg.username)}</div><div class="mstime">${time}</div></div><div class="mbubble${self?' self':''}"><span style="${sty}">${linkify(esc(msg.text))}</span></div>`;
-  msgs.appendChild(w);msgs.scrollTop=msgs.scrollHeight;
+  w.className='mwrap'+(self?' self':'');
+  if(msg.id)w.dataset.mid=msg.id;
+  const rbtn=msg.id?`<button class="rbtn" onclick="openReactPicker(event,'${msg.id}')" title="React">🙂+</button>`:'';
+  w.innerHTML=`<div class="msrow"><div class="msavi">${aviHtml(self?myAvi:(msg.avatar||getAvi(msg.from)))}</div><div class="msname${self?' self':''}">${esc(self?myName:msg.username)}</div><div class="mstime">${time}${msg.offline?' ✉️ sent while away':''}</div></div><div class="mline${self?' self':''}"><div class="mbubble${self?' self':''}"><span style="${sty}">${linkify(esc(msg.text))}</span></div>${rbtn}</div><div class="reacts" data-rx="${msg.id||''}"></div>`;
+  msgs.appendChild(w);
+  if(msg.reactions)renderReactsById(msg.id,msg.reactions);
+  msgs.scrollTop=msgs.scrollHeight;
 }
 
 function renderFile(msg,self){
   const msgs=document.getElementById('messages');if(!msgs)return;
-  const fi=msg.fileInfo;
+  const fi=msg.fileInfo;if(!fi)return;
   const time=new Date(msg.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  const url=(fi.url&&fi.url.startsWith('/'))?CLOUD_URL+fi.url:fi.url;
+  const ext=(fi.originalname||'').split('.').pop().toLowerCase();
+  const isAudio=fi.voice||['webm','mp3','wav','ogg','m4a'].includes(ext);
+  let body;
+  if(isAudio){
+    const dur=fi.duration?` · ${fi.duration}s`:'';
+    body=`<div class="vbubble${self?' self':''}"><div style="font-size:11px;color:var(--tm)">🎤 Voice message${dur}</div><audio controls preload="metadata" src="${url}"></audio></div>`;
+  }else{
+    body=`<div class="fbubble${self?' self':''}"><div class="ficon">${ficon(fi.originalname)}</div><div><div class="fname">${esc(fi.originalname)}</div><div class="fsize">${fbytes(fi.size)}</div><a class="fdl" href="${url}" download="${fi.originalname}" target="_blank">⬇ Download</a></div></div>`;
+  }
   const w=document.createElement('div');
-  w.innerHTML=`<div class="msrow"><div class="msavi">${self?myAvi:getAvi(msg.from)}</div><div class="msname${self?' self':''}">${esc(self?myName:msg.username)}</div><div class="mstime">${time}</div></div><div class="fbubble${self?' self':''}"><div class="ficon">${ficon(fi.originalname)}</div><div><div class="fname">${esc(fi.originalname)}</div><div class="fsize">${fbytes(fi.size)}</div><a class="fdl" href="${fi.url}" download="${fi.originalname}" target="_blank">⬇ Download</a></div></div>`;
+  w.className='mwrap'+(self?' self':'');
+  w.innerHTML=`<div class="msrow"><div class="msavi">${aviHtml(self?myAvi:(msg.avatar||getAvi(msg.from)))}</div><div class="msname${self?' self':''}">${esc(self?myName:msg.username)}</div><div class="mstime">${time}${msg.offline?' ✉️ sent while away':''}</div></div>${body}`;
   msgs.appendChild(w);msgs.scrollTop=msgs.scrollHeight;
+}
+
+// ── REACTIONS ──
+function openReactPicker(ev,msgId){
+  ev.stopPropagation();
+  const p=document.getElementById('rpick');
+  rpickMsgId=msgId;
+  p.innerHTML=REACT_EMOJIS.map(e=>`<span onclick="sendReact('${e}')">${e}</span>`).join('');
+  p.classList.add('open');
+  const r=ev.target.getBoundingClientRect();
+  p.style.left=Math.max(8,Math.min(r.left,window.innerWidth-250))+'px';
+  p.style.top=Math.max(8,r.top-46)+'px';
+}
+function sendReact(emoji){
+  document.getElementById('rpick').classList.remove('open');
+  if(socket?.connected&&rpickMsgId)socket.emit('react',{msgId:rpickMsgId,emoji});
+}
+function toggleReact(msgId,emoji){if(socket?.connected)socket.emit('react',{msgId,emoji});}
+function renderReactsById(msgId,reactions){
+  const el=document.querySelector(`.reacts[data-rx="${msgId}"]`);
+  if(!el)return;
+  el.innerHTML=Object.entries(reactions||{}).map(([e,names])=>`<div class="rchip${names.includes(myName)?' mine':''}" title="${esc(names.join(', '))}" onclick="toggleReact('${msgId}','${e}')">${e} ${names.length}</div>`).join('');
+}
+
+// ── VOICE MESSAGES ──
+async function toggleVoice(){
+  const btn=document.getElementById('bvoice');
+  if(rec){rec.stop();return;}
+  if(!socket?.connected){toast('Not connected','error');return;}
+  if(!isGroup&&!selContact){toast('Open a chat first','warning');return;}
+  let stream;
+  try{stream=await navigator.mediaDevices.getUserMedia({audio:true});}
+  catch(e){toast('Cannot access microphone','error');return;}
+  const mime=MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':'';
+  rec=new MediaRecorder(stream,mime?{mimeType:mime}:undefined);
+  recChunks=[];recStart=Date.now();
+  rec.ondataavailable=e=>{if(e.data.size)recChunks.push(e.data);};
+  rec.onstop=async()=>{
+    stream.getTracks().forEach(t=>t.stop());
+    clearInterval(recTick);btn.classList.remove('rec');btn.textContent='🎤';btn.title='Voice message';
+    const dur=Math.round((Date.now()-recStart)/1000);
+    const blob=new Blob(recChunks,{type:mime||'audio/webm'});
+    rec=null;
+    if(dur<1||blob.size<800){toast('Recording too short','warning');return;}
+    await sendVoice(blob,dur);
+  };
+  rec.start();
+  btn.classList.add('rec');
+  btn.textContent='⏹ 0s';btn.title='Stop and send';
+  recTick=setInterval(()=>{btn.textContent='⏹ '+Math.round((Date.now()-recStart)/1000)+'s';},500);
+  toast('Recording… click ⏹ to send','warning');
+}
+async function sendVoice(blob,duration){
+  toast('Sending voice message…');
+  const fd=new FormData();
+  fd.append('file',blob,'voice-'+Date.now()+'.webm');
+  try{
+    const r=await fetch(`${CLOUD_URL}/upload`,{method:'POST',body:fd});
+    const fi=await r.json();
+    socket.emit('file-share',{to:isGroup?null:(selContact?.id||null),fileInfo:{...fi,voice:true,duration}});
+  }catch(e){toast('Voice message failed to send','error');}
 }
 
 function sysMsg(text){
@@ -555,7 +737,7 @@ function ht(){
 }
 
 function sendNudge(){
-  if(connMode==='internet'){if(peerSendNudge()){toast('Nudge sent! 👋','success');return;}}
+  if(selContact&&String(selContact.id).startsWith('offline:')){toast(`${selContact.username} is offline`,'warning');return;}
   if(!socket?.connected)return;
   socket.emit('nudge',{to:selContact?.id||null});
   toast('Nudge sent! 👋','success');
@@ -605,6 +787,7 @@ function setStatus(s){
 document.addEventListener('click',e=>{
   if(!e.target.closest('#sdot'))document.getElementById('smenu')?.classList.remove('open');
   if(!e.target.closest('.ewrap'))document.getElementById('epanel')?.classList.remove('open');
+  if(!e.target.closest('#rpick')&&!e.target.closest('.rbtn'))document.getElementById('rpick')?.classList.remove('open');
 });
 
 // ── PERSONAL MESSAGE (inline edit) ──
@@ -625,7 +808,9 @@ function editPM(){
 
 // ── AVATAR BUILDER ──
 // ── CLOUD SERVER URL ── Replace with your Render URL after deploying ──
-const CLOUD_URL='https://claude-messenger.onrender.com';
+// When the page is opened from a local server (testing / start.bat), talk to
+// that server instead of the cloud.
+const CLOUD_URL=(location.hostname==='localhost'||location.hostname==='127.0.0.1')?location.origin:'https://claude-messenger.onrender.com';
 
 let aviState={emoji:'😊',bg:'linear-gradient(135deg,#E8895A,#B85C35)',bgType:'gradient',frame:'none',frameColor:'#D97757',shape:'rounded',size:44,shadow:'none',photoData:null};
 const ALL_EMOJIS=['😊','😂','😍','😭','😡','😎','🤔','😴','😷','🥳','🤯','😱','❤️','💔','👍','👎','🙏','💪','🔥','⭐','🎉','🎮','🍕','🎵','💯','✅','❌','🚀','💀','😈','🤣','😆','🙄','😤','🥺','😅','😋','😇','🤗','🤑','😬','🤡','👻','💩','🦋','🌈','⚡','💎','🏆','🎯','🐱','🐶','🦊','🐸','🦁','🐼','🐨','🐯','🦋','🌸','🌺','🌻','🍀','🌵','🎸','🎹','🎻','🥁','🎤','🎬','🏋️','🤸','🧘','🏄','🚴','⚽','🏀','🎾','🎯','🎲','♟️','🧩','🎪','🃏','🦸','🧙','🧝','🧜','🧚','👑','💫','🌟','✨','💥','🎆','🎇','🔮','💌','🎀','🎁','🍕','🍔','🌮','🍜','🍣','🍩','🍦','☕','🧋','🍺'];
@@ -914,6 +1099,7 @@ function toggleTheme(){
 
 async function startCall(type){
   if(!selContact){toast('Select a contact first','warning');return;}
+  if(String(selContact.id).startsWith('offline:')){toast(`${selContact.username} is offline — try a message instead`,'warning');return;}
   callTarget=selContact.id;callType=type;
   try{lStream=await navigator.mediaDevices.getUserMedia({audio:true,video:type==='video'});}
   catch(e){toast('Cannot access mic/camera','error');return;}
@@ -994,6 +1180,7 @@ function togMute(){isMuted=!isMuted;if(lStream)lStream.getAudioTracks().forEach(
 function togCam(){isCamOff=!isCamOff;if(lStream)lStream.getVideoTracks().forEach(t=>t.enabled=!isCamOff);document.getElementById('bcam').textContent=isCamOff?'📷':'📹';document.getElementById('bcam').classList.toggle('active',isCamOff);}
 async function doScreenShare(){
   if(!selContact){toast('Select a contact first','warning');return;}
+  if(String(selContact.id).startsWith('offline:')){toast(`${selContact.username} is offline`,'warning');return;}
   try{
     const ss=await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});
     callTarget=selContact.id;callType='video';lStream=ss;
@@ -1016,6 +1203,21 @@ function ficon(n){const e=n.split('.').pop().toLowerCase();return{pdf:'📄',doc
 function toast(msg,type='info'){const c=document.getElementById('toasts'),d=document.createElement('div');d.className=`toast ${type}`;d.innerHTML=`<strong>${msg}</strong>`;c.appendChild(d);setTimeout(()=>{d.style.opacity='0';d.style.transition='opacity .3s';setTimeout(()=>d.remove(),300);},3500);}
 
 document.getElementById('lname').addEventListener('keydown',e=>{if(e.key==='Enter')signIn();});
+document.getElementById('lpass').addEventListener('keydown',e=>{if(e.key==='Enter')signIn();});
+
+// Remember login details so next time is one click
+try{
+  const p=JSON.parse(localStorage.getItem('cmPrefs')||'{}');
+  if(p.name)document.getElementById('lname').value=p.name;
+  if(p.pm)document.getElementById('lpm').value=p.pm;
+  if(p.pass)document.getElementById('lpass').value=p.pass;
+  if(p.avatar&&document.querySelector(`.avi-opt[data-av="${p.avatar}"]`)){
+    document.querySelectorAll('.avi-opt').forEach(o=>o.classList.toggle('sel',o.dataset.av===p.avatar));
+  }
+}catch(e){}
+
+// PWA: lets phones "Add to Home Screen" from the cloud URL
+if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('/sw.js').catch(()=>{});
 
 
 // ══ INTERNET MODE (PeerJS P2P) ══

@@ -1,0 +1,13 @@
+{
+  "name": "Claude Messenger",
+  "short_name": "Claude Msgr",
+  "description": "Private messenger by Darren and Claude",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF7F4",
+  "theme_color": "#D97757",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
