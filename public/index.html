@@ -1172,7 +1172,9 @@ function attachRemoteMedia(){
   if(ra.srcObject!==remoteStream){ra.srcObject=remoteStream;}
   ra.play().catch(()=>{});
   const rv=document.getElementById('remotevideo');
-  if(rv){rv.muted=true;if(rv.srcObject!==remoteStream)rv.srcObject=remoteStream;rv.play().catch(()=>{});}
+  // When we're sharing our screen, the big element mirrors OUR screen — don't
+  // overwrite it with the viewer's (video-less) stream; their audio still plays.
+  if(rv&&!window._sharingLocal){rv.muted=true;if(rv.srcObject!==remoteStream)rv.srcObject=remoteStream;rv.play().catch(()=>{});}
 }
 
 function showCallUI(tid,label){
@@ -1183,9 +1185,16 @@ function showCallUI(tid,label){
   const vw=document.getElementById('videowrap');vw.innerHTML='';
   if(callType==='video'){
     vw.innerHTML='<video id="remotevideo" autoplay playsinline muted style="flex:1;width:100%;max-height:420px;object-fit:cover;background:#080604"></video><video id="localvideo" autoplay playsinline muted style="position:absolute;bottom:16px;right:16px;width:160px;height:118px;border-radius:10px;border:2px solid var(--bdw);object-fit:cover;background:#080604"></video>';
-    if(lStream)document.getElementById('localvideo').srcObject=lStream;
-    // Re-attach remote stream if it already arrived before the DOM was rebuilt
-    attachRemoteMedia();
+    if(window._sharingLocal){
+      // Sharer's view: the big element mirrors the screen being shared; hide the PiP corner
+      const rv=document.getElementById('remotevideo');
+      rv.srcObject=lStream;rv.style.objectFit='contain';rv.play().catch(()=>{});
+      document.getElementById('localvideo').style.display='none';
+    }else{
+      if(lStream)document.getElementById('localvideo').srcObject=lStream;
+      // Re-attach remote stream if it already arrived before the DOM was rebuilt
+      attachRemoteMedia();
+    }
   }else{
     vw.innerHTML=`<div class="audioview"><div class="audiobigavi">${u?.avatar||'😊'}</div><div class="audioname">${esc(u?.username||'…')}</div><div class="waverow"><div class="wavebar"></div><div class="wavebar"></div><div class="wavebar"></div><div class="wavebar"></div><div class="wavebar"></div></div></div>`;
   }
@@ -1198,7 +1207,7 @@ function endClean(){
   clearInterval(cTick);
   if(lStream){lStream.getTracks().forEach(t=>t.stop());lStream=null;}
   if(pc){pc.close();pc=null;}
-  remoteStream=null;pendingICE=[];
+  remoteStream=null;pendingICE=[];window._sharingLocal=false;
   const ra=document.getElementById('remoteaudio');if(ra)ra.srcObject=null;
   document.getElementById('calloverlay').classList.remove('active');
   document.getElementById('ctimer').textContent='00:00';
@@ -1212,14 +1221,13 @@ async function doScreenShare(){
   try{
     const ss=await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});
     callTarget=selContact.id;callType='video';lStream=ss;
+    window._sharingLocal=true; // we're the sharer — big view shows OUR screen, no PiP corner
     await setupPC();
     ss.getTracks().forEach(t=>pc.addTrack(t,ss));
     const offer=await pc.createOffer();await pc.setLocalDescription(offer);
     socket.emit('screen-share-offer',{to:callTarget,offer});
-    showCallUI(callTarget,'Screen Share');
+    showCallUI(callTarget,'Sharing your screen — this is what they see');
     ss.getVideoTracks()[0].onended=()=>endCall();
-    // Show our own screen in the local preview
-    const lv=document.getElementById('localvideo');if(lv)lv.srcObject=ss;
   }catch(e){toast('Screen share cancelled','warning');}
 }
 

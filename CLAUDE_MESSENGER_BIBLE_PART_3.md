@@ -74,6 +74,8 @@ Darren reported: voice calls connected but were silent; video calls rang but "no
 
 Also added TURN relay servers (openrelay.metered.ca) to the RTC config for calls across different networks, and explicit `.play().catch()` calls for iOS autoplay policies. Verified with an in-page loopback WebRTC call using a synthesized audio track.
 
+4. **Screen share showed "picture in picture" on the sharer's side** — the shared screen went into the tiny PiP corner while the big area showed the viewer's (black, video-less) stream. Fix: `window._sharingLocal` flag — the sharer's big view mirrors their own shared screen (`object-fit:contain`), PiP corner hidden, and `attachRemoteMedia` skips the video element while sharing so the viewer's incoming audio can't hijack the mirror. Flag resets in `endClean`.
+
 ---
 
 ## ⚠️ Gotchas for Future Claude
