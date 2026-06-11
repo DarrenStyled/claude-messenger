@@ -403,6 +403,8 @@ body{font-family:var(--fb);background:var(--bg);color:var(--tp);min-height:100vh
 <div id="dropzone"><span>📎</span>Drop file to send</div>
 <div id="rpick"></div>
 <div id="toasts"></div>
+<!-- Persistent audio sink for calls — never destroyed by call UI rebuilds, so voice always has somewhere to play -->
+<audio id="remoteaudio" autoplay playsinline></audio>
 <input type="file" id="fileinput" multiple onchange="handleFiles(this)">
 
 <script>
@@ -415,7 +417,8 @@ let tTimer=null,isTyping=false,unread={},hist={};
 let lStream=null,remoteStream=null,pc=null,callTarget=null,callType=null,iOffer=null,iFrom=null;
 let cStart=null,cTick=null,isMuted=false,isCamOff=false;
 const EMOJIS=['😊','😂','😍','😭','😡','😎','🤔','😴','😷','🥳','🤯','😱','❤️','💔','👍','👎','🙏','💪','🔥','⭐','🎉','🎮','🍕','🎵','💯','✅','❌','🚀','💀','😈','🤣','😆','🙄','😤','🥺','😅','😋','😇','🤗','🤑','😬','🤡','👻','💩','🦋','🌈','⚡','💎','🏆','🎯'];
-const RTC={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]};
+const RTC={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'},{urls:'stun:stun.cloudflare.com:3478'},{urls:'turn:openrelay.metered.ca:80',username:'openrelayproject',credential:'openrelayproject'},{urls:'turn:openrelay.metered.ca:443',username:'openrelayproject',credential:'openrelayproject'}]};
+let pendingICE=[]; // caller's candidates arrive before Answer is clicked — queue them until the connection exists
 
 function beep(f=880,d=0.1,v=0.25,t='sine'){try{const c=new(window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type=t;o.frequency.value=f;g.gain.setValueAtTime(v,c.currentTime);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+d);o.start();o.stop(c.currentTime+d);}catch(e){}}
 // Keep-alive ping so Render doesn't spin down
@@ -517,8 +520,11 @@ function signIn(){
     }
   });
   socket.on('call-offer',({from,username,offer,callType:ct})=>{iFrom=from;iOffer=offer;callType=ct;window._isScreenShare=false;document.getElementById('icname').textContent=username;document.getElementById('ictype').textContent=ct==='video'?'is video calling you…':'is calling you…';document.getElementById('incomingcall').classList.add('active');sfx.call();});
-  socket.on('call-answer',async({answer})=>{ await pc?.setRemoteDescription(new RTCSessionDescription(answer));});
-  socket.on('ice-candidate',async({candidate})=>{try{await pc?.addIceCandidate(new RTCIceCandidate(candidate));}catch(e){}});
+  socket.on('call-answer',async({answer})=>{ await pc?.setRemoteDescription(new RTCSessionDescription(answer));flushICE();});
+  socket.on('ice-candidate',async({candidate})=>{
+    if(pc&&pc.remoteDescription){try{await pc.addIceCandidate(new RTCIceCandidate(candidate));}catch(e){}}
+    else pendingICE.push(candidate);
+  });
   socket.on('call-end',()=>{endClean();toast('Call ended');});
   socket.on('call-reject',()=>{endClean();toast('Call declined','warning');});
   // Screen share signaling
@@ -529,7 +535,7 @@ function signIn(){
     document.getElementById('incomingcall').classList.add('active');
     sfx.call();
   });
-  socket.on('screen-share-answer',async({answer})=>{await pc?.setRemoteDescription(new RTCSessionDescription(answer));});
+  socket.on('screen-share-answer',async({answer})=>{await pc?.setRemoteDescription(new RTCSessionDescription(answer));flushICE();});
   // Full history arrives on every (re)join — replace, don't append, so nothing duplicates
   socket.on('history',msgs=>{hist['group']=msgs.slice();if(isGroup)rerenderChat();});
   socket.on('private-history',map=>{for(const k in map)hist[k]=map[k].slice();if(!isGroup&&selContact)rerenderChat();});
@@ -1118,21 +1124,27 @@ async function answerCall(){
   const isScreen=window._isScreenShare||false;
   window._isScreenShare=false;
   try{
-    // For screen share reception we only need audio; caller doesn't want our video
-    lStream=await navigator.mediaDevices.getUserMedia({audio:true,video:!isScreen&&callType==='video'});
+    try{
+      // For screen share reception we only need audio; caller doesn't want our video
+      lStream=await navigator.mediaDevices.getUserMedia({audio:true,video:!isScreen&&callType==='video'});
+    }catch(e){
+      if(!isScreen){toast('Cannot access mic/camera — check permissions','error');return;}
+      lStream=null; // OK to proceed without mic when just watching a screen share
+    }
+    await setupPC();
+    if(lStream){
+      lStream.getTracks().forEach(t=>pc.addTrack(t,lStream));
+      if(!isScreen&&callType==='video')document.getElementById('localvideo').srcObject=lStream;
+    }
+    await pc.setRemoteDescription(new RTCSessionDescription(iOffer));
+    await flushICE(); // candidates that arrived while the phone was ringing
+    const ans=await pc.createAnswer();await pc.setLocalDescription(ans);
+    socket.emit(isScreen?'screen-share-answer':'call-answer',{to:callTarget,answer:ans});
+    showCallUI(iFrom,isScreen?'Screen Share':callType==='video'?'Video Call':'Voice Call');
   }catch(e){
-    if(!isScreen){toast('Cannot access mic/camera','error');return;}
-    lStream=null; // OK to proceed without mic when just watching a screen share
+    toast('Could not answer the call: '+(e.message||e.name||'unknown error'),'error');
+    endClean();
   }
-  await setupPC();
-  if(lStream){
-    lStream.getTracks().forEach(t=>pc.addTrack(t,lStream));
-    if(!isScreen&&callType==='video')document.getElementById('localvideo').srcObject=lStream;
-  }
-  await pc.setRemoteDescription(new RTCSessionDescription(iOffer));
-  const ans=await pc.createAnswer();await pc.setLocalDescription(ans);
-  socket.emit(isScreen?'screen-share-answer':'call-answer',{to:callTarget,answer:ans});
-  showCallUI(iFrom,isScreen?'Screen Share':callType==='video'?'Video Call':'Voice Call');
 }
 
 function rejectCall(){socket.emit('call-reject',{to:iFrom});document.getElementById('incomingcall').classList.remove('active');}
@@ -1140,12 +1152,27 @@ function rejectCall(){socket.emit('call-reject',{to:iFrom});document.getElementB
 async function setupPC(){
   pc=new RTCPeerConnection(RTC);
   pc.onicecandidate=e=>{if(e.candidate&&callTarget)socket.emit('ice-candidate',{to:callTarget,candidate:e.candidate});};
-  pc.ontrack=e=>{
-    remoteStream=e.streams[0];
-    const rv=document.getElementById('remotevideo');
-    if(rv){rv.srcObject=remoteStream;if(callType!=='video')rv.style.display='none';}
-  };
+  pc.ontrack=e=>{remoteStream=e.streams[0];attachRemoteMedia();};
   pc.onconnectionstatechange=()=>{if(['disconnected','failed','closed'].includes(pc.connectionState))endClean();};
+}
+
+async function flushICE(){
+  while(pendingICE.length){
+    const c=pendingICE.shift();
+    try{await pc?.addIceCandidate(new RTCIceCandidate(c));}catch(e){}
+  }
+}
+
+// Sound always plays through the persistent #remoteaudio element (the call UI
+// rebuilds its own DOM, so video elements come and go — this one never does).
+// The video element is muted to avoid doubled audio.
+function attachRemoteMedia(){
+  if(!remoteStream)return;
+  const ra=document.getElementById('remoteaudio');
+  if(ra.srcObject!==remoteStream){ra.srcObject=remoteStream;}
+  ra.play().catch(()=>{});
+  const rv=document.getElementById('remotevideo');
+  if(rv){rv.muted=true;if(rv.srcObject!==remoteStream)rv.srcObject=remoteStream;rv.play().catch(()=>{});}
 }
 
 function showCallUI(tid,label){
@@ -1155,10 +1182,10 @@ function showCallUI(tid,label){
   document.getElementById('calllabel').textContent=label;
   const vw=document.getElementById('videowrap');vw.innerHTML='';
   if(callType==='video'){
-    vw.innerHTML='<video id="remotevideo" autoplay playsinline style="flex:1;width:100%;max-height:420px;object-fit:cover;background:#080604"></video><video id="localvideo" autoplay playsinline muted style="position:absolute;bottom:16px;right:16px;width:160px;height:118px;border-radius:10px;border:2px solid var(--bdw);object-fit:cover;background:#080604"></video>';
+    vw.innerHTML='<video id="remotevideo" autoplay playsinline muted style="flex:1;width:100%;max-height:420px;object-fit:cover;background:#080604"></video><video id="localvideo" autoplay playsinline muted style="position:absolute;bottom:16px;right:16px;width:160px;height:118px;border-radius:10px;border:2px solid var(--bdw);object-fit:cover;background:#080604"></video>';
     if(lStream)document.getElementById('localvideo').srcObject=lStream;
     // Re-attach remote stream if it already arrived before the DOM was rebuilt
-    if(remoteStream)document.getElementById('remotevideo').srcObject=remoteStream;
+    attachRemoteMedia();
   }else{
     vw.innerHTML=`<div class="audioview"><div class="audiobigavi">${u?.avatar||'😊'}</div><div class="audioname">${esc(u?.username||'…')}</div><div class="waverow"><div class="wavebar"></div><div class="wavebar"></div><div class="wavebar"></div><div class="wavebar"></div><div class="wavebar"></div></div></div>`;
   }
@@ -1171,7 +1198,8 @@ function endClean(){
   clearInterval(cTick);
   if(lStream){lStream.getTracks().forEach(t=>t.stop());lStream=null;}
   if(pc){pc.close();pc=null;}
-  remoteStream=null;
+  remoteStream=null;pendingICE=[];
+  const ra=document.getElementById('remoteaudio');if(ra)ra.srcObject=null;
   document.getElementById('calloverlay').classList.remove('active');
   document.getElementById('ctimer').textContent='00:00';
   callTarget=null;iFrom=null;iOffer=null;isMuted=false;isCamOff=false;

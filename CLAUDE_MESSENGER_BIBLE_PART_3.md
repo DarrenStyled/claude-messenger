@@ -64,6 +64,18 @@ data/history.json         ← Created at runtime, gitignored
 
 ---
 
+## 📞 Call Fix (same session, after Darren's iPhone/iPad testing)
+
+Darren reported: voice calls connected but were silent; video calls rang but "nothing happens" on answer. Three root causes, all fixed:
+
+1. **Voice calls had no audio element.** `showCallUI` rebuilds `#videowrap` and the audio-call branch replaced it with the waveform view, deleting `#remotevideo` — the only media element. The remote stream arrived in `ontrack` and was attached to nothing. Fix: persistent `<audio id="remoteaudio">` outside the call card that survives UI rebuilds; `attachRemoteMedia()` always routes sound there and mutes the video element to avoid doubled audio. **Never remove #remoteaudio.**
+2. **ICE candidates were dropped while the phone rang.** The caller's candidates arrive before the callee clicks Answer, when `pc` is still null — they were silently discarded. Fix: `pendingICE` queue, flushed after every `setRemoteDescription` (`flushICE()`).
+3. **answerCall failed silently.** Any error (e.g. iOS camera permission) just stopped the function. Now wrapped in try/catch with an error toast.
+
+Also added TURN relay servers (openrelay.metered.ca) to the RTC config for calls across different networks, and explicit `.play().catch()` calls for iOS autoplay policies. Verified with an in-page loopback WebRTC call using a synthesized audio track.
+
+---
+
 ## ⚠️ Gotchas for Future Claude
 
 - Identity is **username-based** (lowercase) for history/roster. If someone signs in with a different name, they're a different person. Name dedup `(2)` suffixes only apply while two same-name users are online simultaneously.
